@@ -3,6 +3,14 @@ from db.models.user import User, UserSubject
 from db.schemas.user import user_schema, users_schema
 from db.client import db_client
 from passlib.context import CryptContext
+from datetime import datetime, timedelta
+from jose import jwt
+
+#CONSTANTS
+ALGORITHM = "HS256"
+ACCESS_TOKEN_DURATION = 15
+SECRET = "201d573bd7d1344d3a3bfce1550b69102fd11be3db6d379508b6cccc58ea230b"
+
 
 crypt = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -47,7 +55,7 @@ async def get_user_subjects(username: str):
 
 
 # Crear un usuario
-@router.post("/", response_model=User, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def create_user(user: User):
     # Verificamos si el usuario ya existe por email o username
     if search_user("email", user.email):
@@ -60,12 +68,10 @@ async def create_user(user: User):
             status_code=status.HTTP_404_NOT_FOUND, detail="Username already exists"
         )
     
-    if  search_user("email", user.email) and search_user("username", user.username):
+    if search_user("email", user.email) and search_user("username", user.username):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Username and email already registered"
         )
-    
-  
 
     # Creamos un diccionario con los datos del usuario
     user_dict = user.model_dump()
@@ -86,9 +92,19 @@ async def create_user(user: User):
     # Recuperamos el usuario recién creado
     new_user = db_client.users.find_one({"_id": id})
 
-    # Devolvemos el nuevo usuario usando el esquema
-    return User(**user_schema(new_user))
+    # Generar un token JWT para el usuario
+    access_token = {
+        "sub": user.username,  # Identificador del usuario
+        "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_DURATION),  # Fecha de expiración
+    }
+    token = jwt.encode(access_token, SECRET, algorithm=ALGORITHM)
 
+    # Devolvemos el nuevo usuario y el token
+    return {
+        "message": "User registered successfully",
+        "user": User(**user_schema(new_user)),  # Información del usuario
+        "token": token,  # Token JWT
+    }
 
 # Actualizar un usuario
 @router.put("/{username}", response_model=User, status_code=status.HTTP_200_OK)

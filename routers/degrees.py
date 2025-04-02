@@ -4,6 +4,7 @@ from db.models.degree import Degree
 from db.schemas.degree import degree_schema, degrees_schema
 from db.client import db_client
 from bson import ObjectId
+from typing import List
 
 # Definimos el router
 router = APIRouter(prefix="/degrees",
@@ -29,6 +30,20 @@ async def get_degree_by_name(name: str):
     if degree:
         return degree
     raise HTTPException(status_code=404, detail="Degree not found")
+
+#Obtner los nambres de todos los degree
+@router.get("/names/", response_model=List[str])
+async def get_degree_names():
+    try:
+        # Proyectamos solo el campo 'name' y excluimos el _id si no lo quieres
+        degrees_cursor = db_client.degrees.find({}, {"name": 1, "_id": 0})
+        
+        # Extraemos solo los nombres de los documentos
+        names_list = [degree["name"] for degree in degrees_cursor]
+        
+        return names_list
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 #Crear un grado
